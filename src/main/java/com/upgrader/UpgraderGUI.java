@@ -77,15 +77,18 @@ public class UpgraderGUI implements InventoryHolder {
         return item;
     }
 
-    private void render() {
-        ItemStack border = pane(Material.GRAY_STAINED_GLASS_PANE, " ");
-        for (int i = 0; i < SIZE; i++) inventory.setItem(i, border);
+       private void render() {
+        // capture whatever the player currently has in the input slot BEFORE
+        // we redraw the border, or we'd overwrite it and lose it
+        ItemStack existingInput = inventory.getItem(INPUT_SLOT);
+        if (existingInput != null && existingInput.getType().isAir()) existingInput = null;
 
-        // input slot stays whatever the player put there
-        ItemStack current = inventory.getItem(INPUT_SLOT);
-        if (current == null || current.getType() == border.getType()) {
-            inventory.setItem(INPUT_SLOT, null);
+        ItemStack border = pane(Material.GRAY_STAINED_GLASS_PANE, " ");
+        for (int i = 0; i < SIZE; i++) {
+            if (i == INPUT_SLOT) continue; // don't touch the input slot here
+            inventory.setItem(i, border);
         }
+        inventory.setItem(INPUT_SLOT, existingInput); // put it back exactly as it was
 
         renderInfo();
         renderCatalogPage();
