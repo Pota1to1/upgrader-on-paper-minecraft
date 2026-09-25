@@ -1,0 +1,16 @@
+name: Upgrader
+version: '1.0.0'
+main: com.upgrader.UpgraderPlugin
+api-version: '26.3'
+author: you
+description: Gamble any item for a chosen upgrade, odds driven by real crafting-recipe value.
+commands:
+  upgrader:
+    description: Get an Upgrader item
+    usage: /upgrader
+    permission: upgrader.give
+    permission-message: You don't have permission for that.
+permissions:
+  upgrader.give:
+    description: Allows getting the Upgrader item via command
+    default: op
