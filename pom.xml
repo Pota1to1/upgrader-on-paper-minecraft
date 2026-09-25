@@ -18,7 +18,7 @@
             https://repo.papermc.io/#browse/browse:maven-public:io%2Fpapermc%2Fpaper%2Fpaper-api
             and swap in whatever the newest folder name is.
         -->
-        <paper.version>26.2-R0.1-SNAPSHOT</paper.version>
+        <paper.version>[26.3.build,)</paper.version>
     </properties>
 
     <repositories>
