@@ -87,7 +87,7 @@ public class UpgraderPlugin extends JavaPlugin {
         openGuis.remove(player.getUniqueId());
     }
 
-       @Override
+    @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!command.getName().equalsIgnoreCase("upgrader")) return false;
 
@@ -128,4 +128,4 @@ public class UpgraderPlugin extends JavaPlugin {
         gui.open();
         return true;
     }
-    
+}
