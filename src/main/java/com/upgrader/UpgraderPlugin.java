@@ -87,11 +87,13 @@ public class UpgraderPlugin extends JavaPlugin {
         openGuis.remove(player.getUniqueId());
     }
 
-    @Override
+       @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!command.getName().equalsIgnoreCase("upgrader")) return false;
 
-        if (args.length > 0 && args[0].equalsIgnoreCase("reload")) {
+        String sub = args.length > 0 ? args[0].toLowerCase() : "";
+
+        if (sub.equals("reload")) {
             if (!sender.hasPermission("upgrader.admin")) {
                 sender.sendMessage(ChatColor.RED + "You don't have permission for that.");
                 return true;
@@ -105,13 +107,25 @@ public class UpgraderPlugin extends JavaPlugin {
             sender.sendMessage("Only players can run this command.");
             return true;
         }
-        if (!player.hasPermission("upgrader.give")) {
+
+        if (sub.equals("give")) {
+            if (!player.hasPermission("upgrader.give")) {
+                player.sendMessage(ChatColor.RED + "You don't have permission for that.");
+                return true;
+            }
+            var leftover = player.getInventory().addItem(createUpgraderItem());
+            leftover.values().forEach(item -> player.getWorld().dropItem(player.getLocation(), item));
+            player.sendMessage(ChatColor.GREEN + "You received an Upgrader.");
+            return true;
+        }
+
+        if (!player.hasPermission("upgrader.use")) {
             player.sendMessage(ChatColor.RED + "You don't have permission for that.");
             return true;
         }
-        var leftover = player.getInventory().addItem(createUpgraderItem());
-        leftover.values().forEach(item -> player.getWorld().dropItem(player.getLocation(), item));
-        player.sendMessage(ChatColor.GREEN + "You received an Upgrader.");
+        UpgraderGUI gui = new UpgraderGUI(this, player);
+        registerOpenGui(player, gui);
+        gui.open();
         return true;
     }
-}
+    
