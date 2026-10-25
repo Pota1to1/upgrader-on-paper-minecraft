@@ -13,6 +13,7 @@ import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -24,13 +25,25 @@ public class UpgraderPlugin extends JavaPlugin {
 
     @Override
     public void onEnable() {
+        saveDefaultConfig();
         this.valueService = new ItemValueService();
         this.itemKey = new NamespacedKey(this, "upgrader_item");
+        reloadValues();
 
         getServer().getPluginManager().registerEvents(new UpgraderListener(this), this);
         registerRecipe();
 
-        getLogger().info("Upgrader enabled - pricing is derived live from registered recipes.");
+        getLogger().info("Upgrader enabled - item values come from config.yml, the built-in table, then recipes.");
+    }
+
+    /** Re-reads config.yml and rebuilds all item values. */
+    private void reloadValues() {
+        reloadConfig();
+        List<String> problems = valueService.loadConfig(getConfig());
+        for (String problem : problems) {
+            getLogger().warning(problem);
+        }
+        UpgraderGUI.resetCatalog();
     }
 
     private void registerRecipe() {
@@ -46,7 +59,7 @@ public class UpgraderPlugin extends JavaPlugin {
         ItemStack item = new ItemStack(Material.NETHER_STAR);
         ItemMeta meta = item.getItemMeta();
         meta.setDisplayName(ChatColor.GOLD + "" + ChatColor.BOLD + "Upgrader");
-        meta.setLore(java.util.List.of(
+        meta.setLore(List.of(
                 ChatColor.GRAY + "Right-click to gamble an item",
                 ChatColor.GRAY + "for a better one.",
                 ChatColor.DARK_GRAY + "Odds are based on item value."
@@ -77,6 +90,17 @@ public class UpgraderPlugin extends JavaPlugin {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!command.getName().equalsIgnoreCase("upgrader")) return false;
+
+        if (args.length > 0 && args[0].equalsIgnoreCase("reload")) {
+            if (!sender.hasPermission("upgrader.admin")) {
+                sender.sendMessage(ChatColor.RED + "You don't have permission for that.");
+                return true;
+            }
+            reloadValues();
+            sender.sendMessage(ChatColor.GREEN + "Upgrader config reloaded.");
+            return true;
+        }
+
         if (!(sender instanceof Player player)) {
             sender.sendMessage("Only players can run this command.");
             return true;

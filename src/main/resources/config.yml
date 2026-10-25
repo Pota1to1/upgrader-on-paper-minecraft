@@ -1,0 +1,22 @@
+# ---------------------------------------------------------------------------
+# Upgrader config.  After editing, run  /upgrader reload  (or restart).
+# ---------------------------------------------------------------------------
+
+# Override the value of any item. Anything not listed is priced from the
+# plugin's built-in table or worked out from its crafting recipe.
+# Format:   ITEM_NAME: number
+# Reference points: iron ingot = 4, gold ingot = 6, emerald = 24,
+# diamond = 32, netherite ingot = 216, nether star = 500.
+# A higher value = harder to get as a target, and more odds when used as input.
+values: {}
+#  MACE: 500
+#  ELYTRA: 1200
+#  COBBLESTONE: 1
+
+# Extra items that can't be put into the Upgrader or picked as a target.
+# (Spawners, command blocks, barriers, structure blocks, bedrock etc. are
+# already blocked by default.)
+blocked: []
+#  - DRAGON_EGG
+#  - ELYTRA
+#  - NETHER_STAR

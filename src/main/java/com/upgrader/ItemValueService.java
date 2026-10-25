@@ -2,6 +2,8 @@ package com.upgrader;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.inventory.*;
 import org.bukkit.inventory.meta.Damageable;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -9,99 +11,163 @@ import org.bukkit.inventory.meta.ItemMeta;
 import java.util.*;
 
 /**
- * Prices every item by walking its crafting/smelting/smithing/stonecutting
- * recipes back down to a small table of raw-material base values -
- * mirroring how the original "Upgrader" mod derives value automatically
- * instead of hand-tuning a number per item.
+ * Prices every item. Order of priority:
+ *   1. config.yml "values" overrides
+ *   2. the built-in table below (raw materials + things that can't be crafted)
+ *   3. name patterns (smithing templates, music discs, ores, ...)
+ *   4. derived from the cheapest crafting / smelting / smithing recipe
+ *   5. a generic guess
  */
 public class ItemValueService {
 
-    // Seed values for raw materials that have no recipe of their own.
-    // Everything else is derived from these by walking recipes.
     private static final Map<Material, Double> BASE_VALUES = new HashMap<>();
+
+    private static void put(double value, String... names) {
+        for (String name : names) {
+            Material m = Material.matchMaterial(name);
+            if (m != null) BASE_VALUES.put(m, value);
+        }
+    }
+
     static {
-        put("COBBLESTONE", 0.5);
-        put("STONE", 0.5);
-        put("DIRT", 0.1);
-        put("SAND", 0.2);
-        put("GRAVEL", 0.2);
-        put("OAK_LOG", 1.0);
-        put("BIRCH_LOG", 1.0);
-        put("SPRUCE_LOG", 1.0);
-        put("JUNGLE_LOG", 1.0);
-        put("ACACIA_LOG", 1.0);
-        put("DARK_OAK_LOG", 1.0);
-        put("MANGROVE_LOG", 1.0);
-        put("CHERRY_LOG", 1.0);
-        put("COAL", 2.0);
-        put("RAW_IRON", 3.0);
-        put("RAW_GOLD", 5.0);
-        put("RAW_COPPER", 1.5);
-        put("IRON_INGOT", 4.0);
-        put("GOLD_INGOT", 6.0);
-        put("COPPER_INGOT", 2.0);
-        put("REDSTONE", 1.5);
-        put("GLOWSTONE_DUST", 1.5);
-        put("LAPIS_LAZULI", 2.0);
-        put("QUARTZ", 3.0);
-        put("DIAMOND", 32.0);
-        put("EMERALD", 24.0);
-        put("AMETHYST_SHARD", 4.0);
-        put("ANCIENT_DEBRIS", 96.0);
-        put("NETHERITE_SCRAP", 100.0);
-        put("NETHERITE_INGOT", 216.0); // 4 scrap + 4 gold, plus rarity premium
-        put("NETHER_STAR", 500.0);
-        put("DRAGON_EGG", 2000.0);
-        put("ELYTRA", 800.0);
-        put("TRIDENT", 400.0);
-        put("STICK", 0.2);
-        put("STRING", 0.3);
-        put("FEATHER", 0.3);
-        put("LEATHER", 1.0);
-        put("FLINT", 0.3);
-        put("BONE", 0.5);
-        put("SLIME_BALL", 1.0);
-        put("ENDER_PEARL", 8.0);
-        put("BLAZE_ROD", 6.0);
-        put("GHAST_TEAR", 10.0);
-        put("PRISMARINE_SHARD", 1.5);
-        put("PRISMARINE_CRYSTALS", 2.0);
-        put("HONEYCOMB", 1.0);
-        put("WHEAT", 0.3);
+        // ---- cheap natural blocks / drops ----
+        put(0.1, "DIRT", "SNOWBALL", "WHEAT_SEEDS", "BEETROOT_SEEDS", "MELON_SEEDS", "PUMPKIN_SEEDS");
+        put(0.2, "SAND", "GRAVEL", "NETHERRACK", "MUD", "STICK", "BAMBOO", "KELP");
+        put(0.3, "RED_SAND", "GRASS_BLOCK", "STRING", "FEATHER", "FLINT", "WHEAT", "EGG", "ROTTEN_FLESH",
+                "SUGAR_CANE", "MELON_SLICE", "SWEET_BERRIES", "VINE");
+        put(0.5, "COBBLESTONE", "STONE", "END_STONE", "SOUL_SAND", "SOUL_SOIL", "BLACKSTONE", "BASALT",
+                "TUFF", "DRIPSTONE_BLOCK", "PODZOL", "CLAY_BALL", "CARROT", "POTATO", "BEETROOT",
+                "COCOA_BEANS", "GLOW_BERRIES", "BROWN_MUSHROOM", "RED_MUSHROOM", "CACTUS", "LILY_PAD",
+                "BONE", "RABBIT_HIDE");
+        put(0.6, "COBBLED_DEEPSLATE");
+        put(0.7, "DEEPSLATE", "COD", "SALMON");
+        put(1.0, "OAK_LOG", "BIRCH_LOG", "SPRUCE_LOG", "JUNGLE_LOG", "ACACIA_LOG", "DARK_OAK_LOG",
+                "MANGROVE_LOG", "CHERRY_LOG", "PALE_OAK_LOG", "LEATHER", "SLIME_BALL", "HONEYCOMB",
+                "SPIDER_EYE", "BEEF", "PORKCHOP", "CHICKEN", "MUTTON", "RABBIT", "INK_SAC", "PUMPKIN",
+                "ICE", "CALCITE", "SEA_PICKLE", "SCULK", "RESIN_CLUMP");
+        put(1.5, "RAW_COPPER", "REDSTONE", "GLOWSTONE_DUST", "NETHER_WART", "PRISMARINE_SHARD");
+        put(2.0, "COAL", "LAPIS_LAZULI", "COPPER_INGOT", "APPLE", "GUNPOWDER", "PRISMARINE_CRYSTALS",
+                "TROPICAL_FISH", "MYCELIUM");
+        put(3.0, "RAW_IRON", "QUARTZ", "PUFFERFISH", "CHORUS_FRUIT", "GLOW_INK_SAC", "HONEY_BOTTLE",
+                "WIND_CHARGE");
+
+        // ---- metals and gems ----
+        put(4.0, "IRON_INGOT", "AMETHYST_SHARD");
+        put(5.0, "RAW_GOLD");
+        put(6.0, "GOLD_INGOT", "BLAZE_ROD", "PHANTOM_MEMBRANE");
+        put(8.0, "ENDER_PEARL", "OBSIDIAN", "BREEZE_ROD", "RABBIT_FOOT", "ARMADILLO_SCUTE", "TURTLE_SCUTE",
+                "SCUTE", "TORCHFLOWER_SEEDS", "PITCHER_POD", "DISC_FRAGMENT_5");
+        put(10.0, "GHAST_TEAR");
+        put(15.0, "EXPERIENCE_BOTTLE", "TRIAL_KEY", "SCULK_SENSOR");
+        put(20.0, "CRYING_OBSIDIAN");
+        put(24.0, "EMERALD");
+        put(25.0, "NAME_TAG");
+        put(30.0, "OMINOUS_BOTTLE");
+        put(32.0, "DIAMOND");
+        put(40.0, "SADDLE", "GOAT_HORN", "SHULKER_SHELL", "NAUTILUS_SHELL", "SPONGE", "WET_SPONGE",
+                "OMINOUS_TRIAL_KEY");
+        put(50.0, "ECHO_SHARD");
+        put(60.0, "SKELETON_SKULL", "ZOMBIE_HEAD", "CREEPER_HEAD", "PIGLIN_HEAD", "SCULK_SHRIEKER",
+                "SCULK_CATALYST", "WITHER_ROSE", "CREAKING_HEART");
+        put(80.0, "SNIFFER_EGG");
+        put(96.0, "ANCIENT_DEBRIS");
+        put(100.0, "NETHERITE_SCRAP");
+
+        // ---- rare / endgame things that cannot be crafted ----
+        put(150.0, "HEAVY_CORE", "WITHER_SKELETON_SKULL", "HEART_OF_THE_SEA");
+        put(216.0, "NETHERITE_INGOT");
+        put(250.0, "TOTEM_OF_UNDYING");
+        put(350.0, "MACE");
+        put(400.0, "TRIDENT", "ENCHANTED_GOLDEN_APPLE");
+        put(500.0, "NETHER_STAR");
+        put(600.0, "DRAGON_HEAD");
+        put(800.0, "ELYTRA");
+        put(2000.0, "DRAGON_EGG");
     }
 
-    private static void put(String materialName, double value) {
-        Material m = Material.matchMaterial(materialName);
-        if (m != null) BASE_VALUES.put(m, value);
-    }
+    private static final Set<String> RARE_DISCS = new HashSet<>(Arrays.asList(
+            "MUSIC_DISC_PIGSTEP", "MUSIC_DISC_OTHERSIDE", "MUSIC_DISC_RELIC", "MUSIC_DISC_CREATOR",
+            "MUSIC_DISC_CREATOR_MUSIC_BOX", "MUSIC_DISC_PRECIPICE", "MUSIC_DISC_TEARS",
+            "MUSIC_DISC_LAVA_CHICKEN"));
 
-    // Materials whose value lives entirely in NBT - excluded as upgrade
-    // targets, same as the original mod does for potions/enchanted books/etc.
-    public static boolean isValuable(Material m) {
-        if (m == null || m.isAir() || !m.isItem()) return false;
-        String n = m.name();
-        return !(n.contains("POTION") || n.equals("ENCHANTED_BOOK")
-                || n.contains("SPAWN_EGG") || n.equals("WRITTEN_BOOK")
-                || n.equals("TIPPED_ARROW") || n.equals("PLAYER_HEAD")
-                || n.equals("FIREWORK_ROCKET") || n.equals("SUSPICIOUS_STEW"));
-    }
+    /** Items nobody should be able to put in or pick as a target (admin / unobtainable). */
+    private static final Set<String> BLOCKED_NAMES = new HashSet<>(Arrays.asList(
+            "SPAWNER", "TRIAL_SPAWNER", "VAULT",
+            "COMMAND_BLOCK", "CHAIN_COMMAND_BLOCK", "REPEATING_COMMAND_BLOCK", "COMMAND_BLOCK_MINECART",
+            "BARRIER", "LIGHT", "STRUCTURE_BLOCK", "STRUCTURE_VOID", "JIGSAW", "TEST_BLOCK",
+            "TEST_INSTANCE_BLOCK", "DEBUG_STICK", "KNOWLEDGE_BOOK", "BEDROCK", "END_PORTAL_FRAME",
+            "REINFORCED_DEEPSLATE", "PETRIFIED_OAK_SLAB", "BUDDING_AMETHYST", "CHORUS_PLANT",
+            "SUSPICIOUS_SAND", "SUSPICIOUS_GRAVEL"));
 
+    private final Map<Material, Double> overrides = new HashMap<>();
+    private final Set<String> extraBlocked = new HashSet<>();
     private final Map<Material, Double> cache = new HashMap<>();
     private final Set<Material> resolving = new HashSet<>();
 
-    /** Base value of a material with a full stack of durability, ignoring NBT. */
+    /** Loads "values" and "blocked" from config.yml. Returns a list of problems to log. */
+    public List<String> loadConfig(FileConfiguration config) {
+        List<String> problems = new ArrayList<>();
+        overrides.clear();
+        extraBlocked.clear();
+        cache.clear();
+
+        ConfigurationSection values = config.getConfigurationSection("values");
+        if (values != null) {
+            for (String key : values.getKeys(false)) {
+                Material m = Material.matchMaterial(key);
+                double v = values.getDouble(key, -1.0);
+                if (m == null) {
+                    problems.add("config.yml values: unknown item '" + key + "' - ignored");
+                } else if (v <= 0) {
+                    problems.add("config.yml values: '" + key + "' needs a number above 0 - ignored");
+                } else {
+                    overrides.put(m, v);
+                }
+            }
+        }
+        for (String name : config.getStringList("blocked")) {
+            String upper = name.trim().toUpperCase(Locale.ROOT);
+            if (Material.matchMaterial(upper) == null) {
+                problems.add("config.yml blocked: unknown item '" + name + "' - ignored");
+            } else {
+                extraBlocked.add(upper);
+            }
+        }
+        return problems;
+    }
+
+    /** True if this material can never be used as an input or a target. */
+    public boolean isBlocked(Material m) {
+        if (m == null || m.isLegacy() || m.isAir() || !m.isItem()) return true;
+        String n = m.name();
+        return BLOCKED_NAMES.contains(n) || n.startsWith("INFESTED_") || extraBlocked.contains(n);
+    }
+
+    /** True if this material may appear in the target catalog. */
+    public boolean isValidTarget(Material m) {
+        if (isBlocked(m)) return false;
+        String n = m.name();
+        // items whose real identity lives in NBT/components, so the base item is meaningless
+        return !(n.contains("POTION") || n.equals("ENCHANTED_BOOK") || n.contains("SPAWN_EGG")
+                || n.equals("WRITTEN_BOOK") || n.equals("TIPPED_ARROW") || n.equals("PLAYER_HEAD")
+                || n.equals("FIREWORK_ROCKET") || n.equals("SUSPICIOUS_STEW"));
+    }
+
+    /** Value of one plain item of this material. */
     public double getBaseValue(Material material) {
         Double cached = cache.get(material);
         if (cached != null) return cached;
 
-        if (BASE_VALUES.containsKey(material)) {
-            double v = BASE_VALUES.get(material);
-            cache.put(material, v);
-            return v;
+        Double fixed = overrides.get(material);
+        if (fixed == null) fixed = BASE_VALUES.get(material);
+        if (fixed == null) fixed = patternValue(material);
+        if (fixed != null) {
+            cache.put(material, fixed);
+            return fixed;
         }
 
         if (resolving.contains(material)) {
-            // Recipe cycle guard - fall back to a rarity guess rather than recurse forever.
+            // recipe cycle - guess instead of recursing forever
             return rarityGuess(material);
         }
         resolving.add(material);
@@ -120,7 +186,7 @@ public class ItemValueService {
         return result;
     }
 
-    /** Value of an actual item stack (single item), factoring in remaining durability. */
+    /** Value of ONE item from this stack: durability and enchantments included. */
     public double getValue(ItemStack stack) {
         if (stack == null || stack.getType().isAir()) return 0.0;
         double value = getBaseValue(stack.getType());
@@ -132,7 +198,62 @@ public class ItemValueService {
             double remaining = Math.max(0.0, (max - damage) / (double) max);
             value *= Math.max(0.05, remaining);
         }
+
+        for (int level : stack.getEnchantments().values()) {
+            value += level * 4.0;
+        }
         return value;
+    }
+
+    /** Value of the whole stack (per-item value x amount). */
+    public double getTotalValue(ItemStack stack) {
+        if (stack == null || stack.getType().isAir()) return 0.0;
+        return getValue(stack) * stack.getAmount();
+    }
+
+    private Double patternValue(Material m) {
+        String n = m.name();
+        if (n.equals("NETHERITE_UPGRADE_SMITHING_TEMPLATE")) return 150.0;
+        if (n.endsWith("_SMITHING_TEMPLATE")) return 60.0;
+        if (n.endsWith("_POTTERY_SHERD")) return 20.0;
+        if (n.endsWith("_BANNER_PATTERN")) return 20.0;
+        if (n.startsWith("MUSIC_DISC_")) return RARE_DISCS.contains(n) ? 100.0 : 60.0;
+        if (n.endsWith("_SPAWN_EGG")) return 50.0;
+
+        if (n.endsWith("_HORSE_ARMOR")) {
+            if (n.startsWith("NETHERITE")) return 250.0;
+            if (n.startsWith("DIAMOND")) return 60.0;
+            if (n.startsWith("GOLDEN")) return 30.0;
+            if (n.startsWith("IRON")) return 20.0;
+            return 8.0;
+        }
+
+        if (n.endsWith("_BUCKET")) { // plain BUCKET doesn't match (no underscore) and is craftable
+            if (n.equals("WATER_BUCKET")) return 13.0;
+            if (n.equals("MILK_BUCKET")) return 14.0;
+            if (n.equals("POWDER_SNOW_BUCKET")) return 15.0;
+            if (n.equals("LAVA_BUCKET")) return 16.0;
+            return 20.0; // fish / axolotl / tadpole buckets
+        }
+
+        if (n.startsWith("STRIPPED_")) return 1.0; // stripped logs have no recipe
+        if (n.endsWith("_LOG")) return 1.0;
+        if (n.endsWith("_STEM")) return 1.5;       // crimson / warped
+
+        if (n.endsWith("_ORE")) return oreValue(n);
+        return null;
+    }
+
+    private double oreValue(String n) {
+        if (n.contains("DIAMOND")) return 40.0;
+        if (n.contains("EMERALD")) return 30.0;
+        if (n.contains("LAPIS")) return 6.0;
+        if (n.contains("REDSTONE")) return 6.0;
+        if (n.contains("GOLD")) return 8.0;
+        if (n.contains("IRON")) return 6.0;
+        if (n.contains("COPPER")) return 3.0;
+        if (n.contains("COAL")) return 3.0;
+        return 5.0;
     }
 
     private Double costOfRecipe(Recipe recipe) {
