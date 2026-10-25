@@ -5,14 +5,16 @@ api-version: '26.3'
 author: you
 description: Gamble any item for a chosen upgrade, odds driven by item value.
 commands:
+ commands:
   upgrader:
-    description: Get an Upgrader item, or reload the config
-    usage: /upgrader [reload]
-    permission: upgrader.give
-    permission-message: You don't have permission for that.
+    description: Open the Upgrader (or /upgrader give, /upgrader reload)
+    usage: /upgrader [give|reload]
 permissions:
+  upgrader.use:
+    description: Allows opening the Upgrader with /upgrader
+    default: true
   upgrader.give:
-    description: Allows getting the Upgrader item via command
+    description: Allows getting the Upgrader item with /upgrader give
     default: op
   upgrader.admin:
     description: Allows /upgrader reload
